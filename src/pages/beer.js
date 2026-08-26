@@ -1,7 +1,4 @@
-﻿let addButtonErrorShown = false;
-
-
-function dataPars(data) {
+﻿function dataPars(data) {
     try {
         return JSON.parse(data);
     } catch (_) {}
