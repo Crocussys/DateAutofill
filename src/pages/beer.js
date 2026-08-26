@@ -1,7 +1,4 @@
-﻿let addButtonErrorShown = false;
-
-
-function dataPars(data) {
+﻿function dataPars(data) {
     try {
         return JSON.parse(data);
     } catch (_) {}
@@ -265,24 +262,6 @@ async function addDates(codes) {
     window.scrollTo(0, 0);
 }
 
-function addButton(btn) {
-    const container = document.querySelector('div.LayoutControlPanel__toolbar');
-
-    if (!container) {
-        if (!addButtonErrorShown) {
-            NotificationService.error('Внутренняя ошибка: контейнер для кнопки не найден');
-            addButtonErrorShown = true;
-        }
-
-        return false;
-    }
-
-    addButtonErrorShown = false;
-    container.appendChild(btn);
-
-    return true;
-}
-
 async function checkInsertResult(codes) {
     let gtinSuccess = 0;
     let gtinFailed = [];
@@ -348,7 +327,13 @@ async function checkInsertResult(codes) {
 
 function ensureAddButton() {
     if (document.getElementById('add-button')) {
-        return;
+        return true;
+    }
+
+    const container = document.querySelector('div.LayoutControlPanel__toolbar');
+
+    if (!container) {
+        return false;
     }
 
     const btn = createButton(addCodes, 'Вставить коды', {}, {
@@ -357,13 +342,28 @@ function ensureAddButton() {
     });
 
     btn.id = 'add-button';
-
-    addButton(btn);
+    btn.style.height = '52px';
 
     updateButtonState(btn);
+    container.appendChild(btn);
+
+    return true;
 }
 
-function init() {
+async function init() {
+    const container = await waitFor(
+        () => document.querySelector('div.LayoutControlPanel__toolbar'),
+        10000,
+        100
+    );
+
+    if (!container) {
+        NotificationService.error('Внутренняя ошибка: контейнер для кнопки не найден');
+        return;
+    }
+
+    ensureAddButton();
+
     const observer = new MutationObserver(() => {
         ensureAddButton();
     });
@@ -372,8 +372,6 @@ function init() {
         childList: true,
         subtree: true
     });
-
-    ensureAddButton();
 }
 
 if (document.readyState === 'loading') {

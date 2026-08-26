@@ -20,18 +20,6 @@ function setInputValueWithoutBlur(input, value) {
     input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-async function waitForInputByName(inputName, timeoutMs = 3000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        const input = document.querySelector(`input[name="${inputName}"]`);
-        if (input) {
-            return input;
-        }
-        await reactSleep(50);
-    }
-    return null;
-}
-
 async function bringIntoView(element, delayMs = 80) {
     if (!element) {
         return;
@@ -61,120 +49,6 @@ function getInputsByNamePattern(namePrefix, nameSuffix, readyOnly = false, ready
         return rows;
     }
     return rows.filter(readyCheck);
-}
-
-async function waitForStableInputByName(inputName, timeoutMs = 7000, stableMs = 200, readyCheck = isMuiInputReady) {
-    const start = Date.now();
-    let candidate = null;
-    let stableSince = 0;
-    while (Date.now() - start < timeoutMs) {
-        const input = document.querySelector(`input[name="${inputName}"]`);
-        if (input && readyCheck(input) && input.isConnected) {
-            if (input !== candidate) {
-                candidate = input;
-                stableSince = Date.now();
-            } else if (Date.now() - stableSince >= stableMs) {
-                return input;
-            }
-        } else {
-            candidate = null;
-            stableSince = 0;
-        }
-        await reactSleep(50);
-    }
-    return null;
-}
-
-async function waitForAutocompleteOption(input, value, timeoutMs = 8000) {
-    const targetValue = String(value).trim();
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-        const listboxId = input.getAttribute('aria-controls') ||
-                          input.getAttribute('aria-owns');
-
-        let listbox = listboxId
-            ? document.getElementById(listboxId)
-            : null;
-
-        if (!listbox) {
-            listbox = document.querySelector('ul[role="listbox"]');
-        }
-
-        if (listbox) {
-            const options = Array.from(
-                listbox.querySelectorAll('li[role="option"]')
-            );
-
-            const exact = options.find(option => {
-                const dataValue = option.getAttribute('data-value')?.trim() ?? '';
-                const text = option.textContent?.trim() ?? '';
-
-                return dataValue === targetValue || text === targetValue;
-            });
-
-            if (exact) {
-                return exact;
-            }
-
-            if (options.length === 1) {
-                return options[0];
-            }
-        }
-
-        await reactSleep(50);
-    }
-
-    return null;
-}
-
-async function waitForAutocompleteOptionByValue(inputName, value, timeoutMs = 8000) {
-    const targetValue = String(value).trim();
-    const findOption = (input) => {
-        const listboxId = input.getAttribute('aria-controls') || input.getAttribute('aria-owns');
-        let listbox = listboxId ? document.getElementById(listboxId) : null;
-        if (!listbox) {
-            listbox = document.querySelector('ul[role="listbox"]');
-        }
-        if (!listbox) {
-            return null;
-        }
-        const options = Array.from(listbox.querySelectorAll('li[role="option"]'));
-        const exactOption = options.find(option => {
-            const dataValue = option.getAttribute('data-value')?.trim() ?? '';
-            const label = option.textContent?.trim() ?? '';
-            return dataValue === targetValue || label === targetValue;
-        });
-        if (exactOption) {
-            return exactOption;
-        }
-        if (options.length === 1) {
-            return options[0];
-        }
-        if (options.length > 1) {
-            return { multiple: true };
-        }
-        return null;
-    };
-
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-        const input = document.querySelector(`input[name="${inputName}"]`);
-        if (!input) {
-            await reactSleep(50);
-            continue;
-        }
-        const option = findOption(input);
-        if (option) {
-            return option;
-        }
-        await reactSleep(50);
-    }
-    return null;
-}
-
-async function waitForGtinOption(inputName, gtin, timeoutMs = 8000) {
-    return waitForAutocompleteOptionByValue(inputName, gtin, timeoutMs);
 }
 
 async function selectMuiOptionByName(inputName, value) {
@@ -245,65 +119,6 @@ async function selectMuiOptionByName(inputName, value) {
     return false;
 }
 
-async function waitForFileInput(timeoutMs = 5000) {
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-        const input = document.querySelector('input[type="file"]');
-
-        if (input) {
-            return input;
-        }
-
-        await reactSleep(50);
-    }
-
-    return null;
-}
-
-async function waitForCodes(codes, timeoutMs = 10000) {
-    const targets = codes.map(item => String(item.gtin).trim());
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-        const rows = Array.from(document.querySelectorAll('div.DataRow'));
-
-        const current = new Set(
-            rows.map(row => {
-                const cell = row.querySelector('div.DataCell-Content div.MuiBox-root');
-                return cell?.textContent?.trim();
-            }).filter(Boolean)
-        );
-
-        if (targets.every(gtin => current.has(gtin))) {
-            return true;
-        }
-
-        await reactSleep(100);
-    }
-
-    NotificationService.warn('Не все коды появились в таблице');
-    return false;
-}
-
-async function waitForGtinInput(timeoutMs = 5000) {
-    const start = Date.now();
-
-    while (Date.now() - start < timeoutMs) {
-        const inputs = Array.from(document.querySelectorAll('input'));
-
-        const input = inputs.find(input => !input.name);
-
-        if (input) {
-            return input;
-        }
-
-        await reactSleep(50);
-    }
-
-    return null;
-}
-
 function lockUserScroll() {
     if (userScrollLocked) return;
 
@@ -342,4 +157,238 @@ function preventKeyboardScroll(event) {
     if (keys.includes(event.key)) {
         event.preventDefault();
     }
+}
+
+async function waitFor(check, timeoutMs = 5000, pollMs = 50) {
+    const start = Date.now();
+
+    while (Date.now() - start < timeoutMs) {
+        const result = check();
+
+        if (result) {
+            return result;
+        }
+
+        await reactSleep(pollMs);
+    }
+
+    return null;
+}
+
+function waitForInputByName(inputName, timeoutMs = 3000) {
+    return waitFor(
+        () => document.querySelector(`input[name="${inputName}"]`),
+        timeoutMs
+    );
+}
+
+function waitForFileInput(timeoutMs = 5000) {
+    return waitFor(
+        () => document.querySelector('input[type="file"]'),
+        timeoutMs
+    );
+}
+
+function waitForGtinInput(timeoutMs = 5000) {
+    return waitFor(
+        () => Array.from(document.querySelectorAll('input'))
+            .find(input => !input.name),
+        timeoutMs
+    );
+}
+
+function waitForAutocompleteOption(input, value, timeoutMs = 8000) {
+    const targetValue = String(value).trim();
+
+    return waitFor(() => {
+        const listboxId =
+            input.getAttribute('aria-controls') ||
+            input.getAttribute('aria-owns');
+
+        let listbox = listboxId
+            ? document.getElementById(listboxId)
+            : null;
+
+        if (!listbox) {
+            listbox = document.querySelector('ul[role="listbox"]');
+        }
+
+        if (!listbox) {
+            return null;
+        }
+
+        const options = Array.from(
+            listbox.querySelectorAll('li[role="option"]')
+        );
+
+        const exact = options.find(option => {
+            const dataValue =
+                option.getAttribute('data-value')?.trim() ?? '';
+
+            const text =
+                option.textContent?.trim() ?? '';
+
+            return (
+                dataValue === targetValue ||
+                text === targetValue
+            );
+        });
+
+        if (exact) {
+            return exact;
+        }
+
+        if (options.length === 1) {
+            return options[0];
+        }
+
+        return null;
+    }, timeoutMs);
+}
+
+function waitForAutocompleteOptionByValue(
+    inputName,
+    value,
+    timeoutMs = 8000
+) {
+    const targetValue = String(value).trim();
+
+    return waitFor(() => {
+        const input = document.querySelector(
+            `input[name="${inputName}"]`
+        );
+
+        if (!input) {
+            return null;
+        }
+
+        const listboxId =
+            input.getAttribute('aria-controls') ||
+            input.getAttribute('aria-owns');
+
+        let listbox = listboxId
+            ? document.getElementById(listboxId)
+            : null;
+
+        if (!listbox) {
+            listbox = document.querySelector('ul[role="listbox"]');
+        }
+
+        if (!listbox) {
+            return null;
+        }
+
+        const options = Array.from(
+            listbox.querySelectorAll('li[role="option"]')
+        );
+
+        const exact = options.find(option => {
+            const dataValue =
+                option.getAttribute('data-value')?.trim() ?? '';
+
+            const label =
+                option.textContent?.trim() ?? '';
+
+            return (
+                dataValue === targetValue ||
+                label === targetValue
+            );
+        });
+
+        if (exact) {
+            return exact;
+        }
+
+        if (options.length === 1) {
+            return options[0];
+        }
+
+        if (options.length > 1) {
+            return { multiple: true };
+        }
+
+        return null;
+    }, timeoutMs);
+}
+
+function waitForGtinOption(inputName, gtin, timeoutMs = 8000) {
+    return waitForAutocompleteOptionByValue(
+        inputName,
+        gtin,
+        timeoutMs
+    );
+}
+
+async function waitForCodes(codes, timeoutMs = 10000) {
+    const targets = codes.map(
+        item => String(item.gtin).trim()
+    );
+
+    const result = await waitFor(() => {
+        const rows = Array.from(
+            document.querySelectorAll('div.DataRow')
+        );
+
+        const current = new Set(
+            rows
+                .map(row => {
+                    const cell = row.querySelector(
+                        'div.DataCell-Content div.MuiBox-root'
+                    );
+
+                    return cell?.textContent?.trim();
+                })
+                .filter(Boolean)
+        );
+
+        return targets.every(gtin => current.has(gtin));
+    }, timeoutMs, 100);
+
+    if (!result) {
+        NotificationService.warn(
+            'Не все коды появились в таблице'
+        );
+
+        return false;
+    }
+
+    return true;
+}
+
+function waitForStableInputByName(
+    inputName,
+    timeoutMs = 7000,
+    stableMs = 200,
+    readyCheck = isMuiInputReady
+) {
+    let candidate = null;
+    let stableSince = 0;
+
+    return waitFor(() => {
+        const input = document.querySelector(
+            `input[name="${inputName}"]`
+        );
+
+        if (
+            input &&
+            readyCheck(input) &&
+            input.isConnected
+        ) {
+            if (input !== candidate) {
+                candidate = input;
+                stableSince = Date.now();
+
+                return null;
+            }
+
+            if (Date.now() - stableSince >= stableMs) {
+                return input;
+            }
+        } else {
+            candidate = null;
+            stableSince = 0;
+        }
+
+        return null;
+    }, timeoutMs);
 }
