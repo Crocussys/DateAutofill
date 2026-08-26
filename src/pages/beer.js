@@ -265,27 +265,6 @@ async function addDates(codes) {
     window.scrollTo(0, 0);
 }
 
-async function addButton(btn) {
-    const container = await waitFor(
-        () => document.querySelector('div.LayoutControlPanel__toolbar'),
-        10000
-    );
-
-    if (!container) {
-        if (!addButtonErrorShown) {
-            NotificationService.error('Внутренняя ошибка: контейнер для кнопки не найден');
-            addButtonErrorShown = true;
-        }
-
-        return false;
-    }
-
-    addButtonErrorShown = false;
-    container.appendChild(btn);
-
-    return true;
-}
-
 async function checkInsertResult(codes) {
     let gtinSuccess = 0;
     let gtinFailed = [];
@@ -349,11 +328,32 @@ async function checkInsertResult(codes) {
     }
 }
 
-async function ensureAddButton() {
+function ensureAddButton() {
     if (document.getElementById('add-button')) {
-        return;
+        return true;
     }
 
+    const container = document.querySelector('div.LayoutControlPanel__toolbar');
+
+    if (!container) {
+        return false;
+    }
+
+    const btn = createButton(addCodes, 'Вставить коды', {}, {
+        lockScroll: true,
+        operationFlag: 'beerOperationInProgress'
+    });
+
+    btn.id = 'add-button';
+    btn.style.height = '52px';
+
+    updateButtonState(btn);
+    container.appendChild(btn);
+
+    return true;
+}
+
+async function init() {
     const container = await waitFor(
         () => document.querySelector('div.LayoutControlPanel__toolbar'),
         10000,
@@ -365,20 +365,20 @@ async function ensureAddButton() {
         return;
     }
 
-    const btn = createButton(addCodes, 'Вставить коды', {}, {
-        lockScroll: true,
-        operationFlag: 'beerOperationInProgress'
+    ensureAddButton();
+
+    const observer = new MutationObserver(() => {
+        ensureAddButton();
     });
 
-    btn.id = 'add-button';
-    btn.style.height = '52px';
-
-    container.appendChild(btn);
-    updateButtonState(btn);
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 }
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
-    ensureAddButton();
+    init();
 }
