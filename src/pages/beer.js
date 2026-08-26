@@ -1,4 +1,7 @@
-﻿function dataPars(data) {
+﻿let addButtonErrorShown = false;
+
+
+function dataPars(data) {
     try {
         return JSON.parse(data);
     } catch (_) {}
@@ -263,15 +266,21 @@ async function addDates(codes) {
 }
 
 function addButton(btn) {
-    const inscription = Array.from(document.querySelectorAll('h3'))
-        .find(h => h.innerText === 'Список кодов');
+    const container = document.querySelector('div.LayoutControlPanel__toolbar');
 
-    if (!inscription) return false;
+    if (!container) {
+        if (!addButtonErrorShown) {
+            NotificationService.error('Внутренняя ошибка: контейнер для кнопки не найден');
+            addButtonErrorShown = true;
+        }
 
-    const container = inscription.parentElement.querySelector('.MuiStack-root');
-    if (!container) return false;
+        return false;
+    }
 
+    addButtonErrorShown = false;
     container.appendChild(btn);
+
+    return true;
 }
 
 async function checkInsertResult(codes) {
