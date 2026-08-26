@@ -265,8 +265,11 @@ async function addDates(codes) {
     window.scrollTo(0, 0);
 }
 
-function addButton(btn) {
-    const container = document.querySelector('div.LayoutControlPanel__toolbar');
+async function addButton(btn) {
+    const container = await waitFor(
+        () => document.querySelector('div.LayoutControlPanel__toolbar'),
+        10000
+    );
 
     if (!container) {
         if (!addButtonErrorShown) {
@@ -346,7 +349,7 @@ async function checkInsertResult(codes) {
     }
 }
 
-function ensureAddButton() {
+async function ensureAddButton() {
     if (document.getElementById('add-button')) {
         return;
     }
@@ -357,8 +360,13 @@ function ensureAddButton() {
     });
 
     btn.id = 'add-button';
+    btn.style.height = '52px';
 
-    addButton(btn);
+    const success = await addButton(btn);
+
+    if (!success) {
+        return;
+    }
 
     updateButtonState(btn);
 }
