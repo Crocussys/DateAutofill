@@ -354,6 +354,17 @@ async function ensureAddButton() {
         return;
     }
 
+    const container = await waitFor(
+        () => document.querySelector('div.LayoutControlPanel__toolbar'),
+        10000,
+        100
+    );
+
+    if (!container) {
+        NotificationService.error('Внутренняя ошибка: контейнер для кнопки не найден');
+        return;
+    }
+
     const btn = createButton(addCodes, 'Вставить коды', {}, {
         lockScroll: true,
         operationFlag: 'beerOperationInProgress'
@@ -362,30 +373,12 @@ async function ensureAddButton() {
     btn.id = 'add-button';
     btn.style.height = '52px';
 
-    const success = await addButton(btn);
-
-    if (!success) {
-        return;
-    }
-
+    container.appendChild(btn);
     updateButtonState(btn);
-}
-
-function init() {
-    const observer = new MutationObserver(() => {
-        ensureAddButton();
-    });
-
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-
-    ensureAddButton();
 }
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
-    init();
+    ensureAddButton();
 }
